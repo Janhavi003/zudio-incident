@@ -1,5 +1,4 @@
 const pool = require('../db')
-// express-validator imported for request validation — TODO: wire up later
 const { validationResult } = require('express-validator')
 
 // get all products with optional category filter and search
@@ -10,17 +9,30 @@ const getProducts = async (req, res) => {
     let result
 
     if (search) {
-      // search by name
-      const query = `SELECT * FROM products WHERE name LIKE '%${req.query.search}%'`
-      result = await pool.query(query)
+      // parameterized query to prevent SQL injection
+      result = await pool.query(
+        `SELECT *
+         FROM products
+         WHERE name ILIKE $1
+         LIMIT $2 OFFSET $3`,
+        [`%${search}%`, parseInt(limit), parseInt(offset)]
+      )
     } else if (category) {
       result = await pool.query(
-        'SELECT p.*, c.name as category_name FROM products p JOIN categories c ON p.category_id = c.id WHERE c.name = $1 LIMIT $2 OFFSET $3',
+        `SELECT p.*, c.name as category_name
+         FROM products p
+         JOIN categories c ON p.category_id = c.id
+         WHERE c.name = $1
+         LIMIT $2 OFFSET $3`,
         [category, parseInt(limit), parseInt(offset)]
       )
     } else {
       result = await pool.query(
-        'SELECT p.*, c.name as category_name FROM products p JOIN categories c ON p.category_id = c.id ORDER BY p.created_at DESC LIMIT $1 OFFSET $2',
+        `SELECT p.*, c.name as category_name
+         FROM products p
+         JOIN categories c ON p.category_id = c.id
+         ORDER BY p.created_at DESC
+         LIMIT $1 OFFSET $2`,
         [parseInt(limit), parseInt(offset)]
       )
     }
@@ -41,7 +53,10 @@ const getProductById = async (req, res) => {
     const { id } = req.params
 
     const result = await pool.query(
-      'SELECT p.*, c.name as category_name FROM products p JOIN categories c ON p.category_id = c.id WHERE p.id = $1',
+      `SELECT p.*, c.name as category_name
+       FROM products p
+       JOIN categories c ON p.category_id = c.id
+       WHERE p.id = $1`,
       [id]
     )
 

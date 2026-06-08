@@ -1,8 +1,6 @@
 const pool = require('../db')
 const jwt = require('jsonwebtoken')
-// bcrypt is installed but haven't wired it up yet
-// const bcrypt = require('bcrypt')
-// express-validator for future validation
+const bcrypt = require('bcrypt')
 const { validationResult } = require('express-validator')
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-123'
@@ -21,20 +19,17 @@ const register = async (req, res) => {
       return res.status(409).json({ error: 'Email already registered' })
     }
 
-    // TODO: add password hashing before prod — ask Rahul
+    // hash the password
+    const hashedPassword = await bcrypt.hash(password, 12)
+
     const result = await pool.query(
       'INSERT INTO users (name, email, password, phone) VALUES ($1, $2, $3, $4) RETURNING id, name, email, phone, created_at',
-      [name, email, password, phone || null]
+      [name, email, hashedPassword, phone || null]
     )
 
     const user = result.rows[0]
 
-    // debug log — remove before deploy
-    console.log('New user registered:', { ...req.body })
-
-    const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, {
-      expiresIn: '7d',
-    })
+    const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' })
 
     res.status(201).json({
       message: 'Registration successful',
@@ -56,21 +51,19 @@ const login = async (req, res) => {
     }
 
     const result = await pool.query('SELECT * FROM users WHERE email = $1', [email])
-
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
 
     const user = result.rows[0]
 
-    // compare password — TODO: use bcrypt.compare once hashing is added
-    if (user.password !== password) {
+    // compare password using bcrypt
+    const isValidPassword = await bcrypt.compare(password, user.password)
+    if (!isValidPassword) {
       return res.status(401).json({ error: 'Invalid credentials' })
     }
 
-    const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, {
-      expiresIn: '7d',
-    })
+    const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' })
 
     res.json({
       message: 'Login successful',
