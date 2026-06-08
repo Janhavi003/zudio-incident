@@ -5,7 +5,6 @@ dotenv.config()
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  // max connections — keep this low for now, we'll tune later
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
@@ -14,5 +13,22 @@ const pool = new Pool({
 pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err)
 })
+
+// =========================
+// Query Profiling Wrapper
+// =========================
+const originalQuery = pool.query.bind(pool)
+
+pool.query = async (...args) => {
+  try {
+    if (global.currentRequest) {
+      global.currentRequest._queryCount++
+    }
+
+    return await originalQuery(...args)
+  } catch (err) {
+    throw err
+  }
+}
 
 module.exports = pool
