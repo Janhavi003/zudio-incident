@@ -15,25 +15,55 @@ app.use(cors())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
-// routes
+// =====================================
+// Profiling Middleware (Assignment Step 3)
+// =====================================
+app.use((req, res, next) => {
+  req._startTime = Date.now()
+  req._queryCount = 0
+
+  global.currentRequest = req
+
+  res.on('finish', () => {
+    const duration = Date.now() - req._startTime
+
+    console.log(
+      `[PROFILE] ${req.method} ${req.path} → ${duration}ms | ${req._queryCount} queries`
+    )
+
+    global.currentRequest = null
+  })
+
+  next()
+})
+
+// Routes
 app.use('/api/products', productRoutes)
 app.use('/api/auth', authRoutes)
 app.use('/api/orders', orderRoutes)
 app.use('/api/cart', cartRoutes)
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() })
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+  })
 })
 
-// catch-all for 404s
+// 404 Handler
 app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' })
+  res.status(404).json({
+    error: 'Route not found',
+  })
 })
 
-// basic error handler
+// Global Error Handler
 app.use((err, req, res, next) => {
   console.error(err.stack)
-  res.status(500).json({ error: 'Something went wrong' })
+
+  res.status(500).json({
+    error: 'Something went wrong',
+  })
 })
 
 module.exports = app
